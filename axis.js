@@ -20,6 +20,82 @@ src = src
     .toString()
     .trim();
 
+var expressions = {
+
+    evaluate: function() {
+        var output_buffer = '';
+
+        for (;;) {
+            // string
+            if (src[char] === '\'') {
+                ++char;
+
+                for (;;) {
+                    // fail on newline
+                    if (src[char] === '\n' || src[char] === undefined) {
+                        errors.parse('Unterminated string');
+                    }
+
+                    // account for escape
+                    if (src[char] === '\'' && src[char - 1] !== '\\') {
+                        ++char;
+                        break;
+                    }
+
+                    // replace newline
+                    if (src[char] === '\\') {
+                        // peek forward
+                        if (src[char + 1] == 'n') {
+                            output_buffer += '\n';
+                            ++char;
+                            ++char;
+                            continue;
+                        }
+                    }
+
+                    output_buffer += src[char];
+                    ++char;
+                }
+            }
+
+            // integer
+            if (/[1-9]/gi.test(src[char])) {
+                var fullint = '';
+
+                for (;;) {
+                    // fail on newline or endline
+                    if (src[char] === '\n' || src[char] === undefined) {
+                        errors.parse('Unterminated expression');
+                    }
+
+                    // break
+                    if (/[^1-9]/gi.test(src[char])) {
+                        output_buffer += fullint;
+                        break;
+                    }
+
+                    // append string version of integer
+                    fullint += src[char];
+                    ++char;
+                }
+            }
+
+            // end of expression
+            if (src[char] === ';') {
+                ++char;
+                return output_buffer;
+            }
+
+
+            // newline means missing semi colon
+            if (src[char] === '\n' || src[char] === undefined) {
+                errors.parse('Unterminated expression');
+            }
+        }
+    }
+
+};
+
 var constructs = {
 
     echo: function() {
@@ -27,35 +103,9 @@ var constructs = {
 
         parser.eat_space();
 
-        if (src[char] === '\'') {
-            ++char;
+        var value = expressions.evaluate();
 
-            var output_buffer = '';
-
-            for (;;) {
-                // fail on newline
-                if (src[char] === '\n' || src[char] === undefined) {
-                    errors.parse('Unterminated string');
-                }
-
-                // account for escape
-                if (src[char] === '\'' && src[char - 1] !== '\\') {
-                    ++char;
-                    break;
-                }
-
-                output_buffer += src[char];
-                ++char;
-            }
-
-            console.log(output_buffer);
-
-            return;
-        } else {
-            errors.parse('Unexpected symbol');
-        }
-
-        console.log('hello');
+        process.stdout.write(value);
     }
 
 };
@@ -63,10 +113,12 @@ var constructs = {
 var errors = {
 
     warning: function(message) {
+        console.log();
         throw new Error('\nAxis Warning:', message, 'at line', line);
     },
 
     parse: function(message) {
+        console.log();
         throw new Error('\nAxis Parse Error: ' + message + ' at line ' + line);
     }
 
@@ -111,6 +163,7 @@ var lexer = {
                     ++char;
                     if (src[char] === '\n') {
                         ++char;
+                        ++line;
                         break;
                     }
                 }
@@ -124,6 +177,7 @@ var lexer = {
 
             if (matches !== null) {
                 constructs[matches[0]]();
+                continue;
             }
 
             // file done
@@ -133,7 +187,7 @@ var lexer = {
             ++char;
         }
 
-        console.log('Execution complete, read', ++line, 'line(s)');
+        console.log('\n\n------', 'Execution complete, read', line, 'line(s)');
     },
 
     _get_reserved: function() {
@@ -145,6 +199,7 @@ var lexer = {
 };
 
 try {
+    // do it
     lexer.lex();
 } catch (err) {
     console.log(err.toString());
