@@ -1,0 +1,7 @@
+class calculator -> base {
+
+    pub func add(none, ntwo) {
+        return none + ntwo;
+    }
+
+}

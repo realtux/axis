@@ -1,6 +1,19 @@
+func another_goodbye(mone, mtwo) {
+    echo mtwo;
+    echo mone;
+    echo mtwo;
+}
+
+func goodbye(msg) {
+    echo msg;
+
+    another_goodbye(msg, 'outer\n');
+}
+
 func hello(message) {
     echo message;
     echo message;
+    goodbye('byebyebyebyebyebyebye\n');
 }
 
 // some comment to ignore
@@ -17,3 +30,5 @@ echo variable;
 echo 'end\n';
 hello('im awesome\n');
 hello('im awesomer\n');
+// comment
+echo 'mo money';

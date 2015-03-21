@@ -8,8 +8,11 @@ axis = {
         variables: {},
         functions: {}
     },
-    stack: []
+    stack: [],
+    exec_start: 0
 };
+
+axis.exec_start = Date.now();
 
 // load the source in
 var src  = require('fs').readFileSync(process.argv[2]),
@@ -107,6 +110,7 @@ var expressions = {
 
             // function
             if (/^[a-zA-Z_]+\s*?\(/gi.test(src.slice(char))) {
+                //errors.exit();
                 var function_name = '';
 
                 for (;;) {
@@ -136,6 +140,9 @@ var expressions = {
                 // push past lparen
                 ++char;
 
+                // remove space between lparen and first argument
+                parser.eat_space();
+
                 // check for function
                 if (axis.symbols.functions[function_name] === undefined) {
                     errors.fatal('Undefined function \'' + function_name + '\'');
@@ -148,11 +155,16 @@ var expressions = {
 
                     if (src[char] === ',') {
                         ++char;
+                        // remove space between comma and argument
+                        parser.eat_space();
                         continue;
                     }
 
                     break;
                 }
+
+                // remove space between last argument and rparen
+                parser.eat_space();
 
                 if (src[char] !== ')') {
                     errors.parse('Unclosed function call');
@@ -160,15 +172,14 @@ var expressions = {
 
                 // check if the stack is empty
                 if (axis.stack.length === 0) {
-                    console.log('adding init stack frame');
                     // add char and line to the stack
                     axis.stack.push({
                         char_pos: char,
                         line_pos: line
                     });
                 } else {
-                    axis.stack[0].char_pos = char;
-                    axis.stack[0].line_pos = line;
+                    axis.stack[axis.stack.length - 1].char_pos = char;
+                    axis.stack[axis.stack.length - 1].line_pos = line;
                 }
 
                 // add the stack frame
@@ -255,8 +266,8 @@ var functions = {
         // remove the top stack and move the cursor back
         axis.stack.pop();
 
-        line = axis.stack[0].line_pos;
-        char = axis.stack[0].char_pos;
+        line = axis.stack[axis.stack.length - 1].line_pos;
+        char = axis.stack[axis.stack.length - 1].char_pos;
     }
 
 };
@@ -341,6 +352,7 @@ var constructs = {
             }
 
             ++char;
+            parser.eat_space();
         }
 
         // verify next character is an rparen
@@ -530,7 +542,7 @@ var lexer = {
 
             // reserved keyword
             var matches =
-                new RegExp('(' + this._get_reserved().join('|') + ')')
+                new RegExp('^(' + this._get_reserved().join('|') + ')')
                     .exec(src.slice(char));
 
             // check for a matched reserved keyword
@@ -551,8 +563,6 @@ var lexer = {
             // analyze next character
             ++char;
         }
-
-        console.log('\n\n------', 'Execution complete, read', line, 'line(s)');
     },
 
     _get_reserved: function() {
@@ -569,6 +579,9 @@ var lexer = {
 try {
     // do it
     lexer.lex();
+
+    console.log('\n\n------', 'Execution complete, read', line, 'line(s)');
+    console.log('------', ((Date.now() - axis.exec_start) / 1000).toFixed(3), 'seconds');
 } catch (err) {
     console.log(err.toString());
 }
