@@ -6,8 +6,9 @@
 axis = {
     symbols: {
         variables: {},
-        functions: []
-    }
+        functions: {}
+    },
+    stack: []
 };
 
 // load the source in
@@ -106,7 +107,79 @@ var expressions = {
 
             // function
             if (/^[a-zA-Z_]+\s*?\(/gi.test(src.slice(char))) {
+                var function_name = '';
 
+                for (;;) {
+                    // fail on newline or endline
+                    if (src[char] === '\n' || src[char] === undefined) {
+                        errors.parse('Unterminated function');
+                    }
+
+                    if (src[char] === ' ') {
+                        ++char;
+                        continue;
+                    }
+
+                    // break
+                    if (/[^a-zA-Z_]+/gi.test(src[char])) {
+                        if (src[char] === '(') {
+                            break;
+                        }
+
+                        errors.parse('Undefined symbol in function call');
+                    }
+
+                    function_name += src[char];
+                    ++char;
+                }
+
+                // push past lparen
+                ++char;
+
+                // check for function
+                if (axis.symbols.functions[function_name] === undefined) {
+                    errors.fatal('Undefined function \'' + function_name + '\'');
+                }
+
+                var argument_values = [];
+
+                for (;;) {
+                    argument_values.push(expressions.evaluate());
+
+                    if (src[char] === ',') {
+                        ++char;
+                        continue;
+                    }
+
+                    break;
+                }
+
+                if (src[char] !== ')') {
+                    errors.parse('Unclosed function call');
+                }
+
+                // check if the stack is empty
+                if (axis.stack.length === 0) {
+                    console.log('adding init stack frame');
+                    // add char and line to the stack
+                    axis.stack.push({
+                        char_pos: char,
+                        line_pos: line
+                    });
+                } else {
+                    axis.stack[0].char_pos = char;
+                    axis.stack[0].line_pos = line;
+                }
+
+                // add the stack frame
+                var frame_function = axis.symbols.functions[function_name];
+
+                // add the argument values
+                frame_function.argument_values = argument_values;
+
+                axis.stack.push(frame_function);
+
+                functions.call();
             }
 
             // variable
@@ -133,24 +206,57 @@ var expressions = {
                 var variable_value = axis.symbols.variables[variable_name];
 
                 if (variable_value === undefined) {
-                    errors.warning('Undefined variable \'' + variable_name + '\'');
-                } else {
-                    output_buffer += variable_value;
+                    // see if the stack is larger than one
+                    if (axis.stack.length > 1) {
+                        // another chance to find this variable
+                        var stack_frame = axis.stack[axis.stack.length - 1];
+
+                        stack_frame.arguments.forEach(function(argument, index) {
+                            if (argument === variable_name) {
+                                variable_value = stack_frame.argument_values[index];
+                            }
+                        });
+
+                        // last chance
+                        if (variable_value === undefined) {
+                            errors.warning('Undefined variable \'' + variable_name + '\'');
+                        }
+                    } else {
+                        errors.warning('Undefined variable \'' + variable_name + '\'');
+                    }
                 }
-            }
 
-            // end of expression
-            if (src[char] === ';') {
-                ++char;
-                return output_buffer;
+                output_buffer += variable_value;
             }
-
 
             // newline means missing semi colon
             if (src[char] === '\n' || src[char] === undefined) {
                 errors.parse('Unterminated expression');
             }
+
+            return output_buffer;
         }
+    }
+
+};
+
+var functions = {
+
+    call: function() {
+        var stack_frame = axis.stack[axis.stack.length - 1];
+
+        // move the cursor to the latest stack frame body start
+        line = stack_frame.body_line;
+        char = stack_frame.body_start;
+
+        // lex
+        lexer.lex();
+
+        // remove the top stack and move the cursor back
+        axis.stack.pop();
+
+        line = axis.stack[0].line_pos;
+        char = axis.stack[0].char_pos;
     }
 
 };
@@ -172,6 +278,7 @@ var constructs = {
             char_pos: char,
             name: '',
             arguments: [],
+            body_line: null,
             body_start: null,
             body_end: null
         };
@@ -252,6 +359,7 @@ var constructs = {
 
         // push past lcurly
         ++char;
+        func.body_line = line;
         func.body_start = char;
 
         // rip through to closing rcurly
@@ -289,8 +397,12 @@ var constructs = {
 
         ++char;
 
-        console.log(func);
-        errors.exit();
+        axis.symbols.functions[func.name] = func;
+    },
+
+    // return handling
+    return: function() {
+
     },
 
     // variable assignment
@@ -339,17 +451,22 @@ var constructs = {
 var errors = {
 
     warning: function(message) {
-        console.log('----');
+        console.log('\n----');
         throw 'Axis Warning: ' + message + ' at line ' + line;
     },
 
     parse: function(message) {
-        console.log('----');
+        console.log('\n----');
         throw 'Axis Parse Error: ' + message + ' at line ' + line;
     },
 
+    fatal: function(message) {
+        console.log('\n----');
+        throw 'Axis Fatal Error: ' + message + ' at line ' + line;
+    },
+
     exit: function(message) {
-        console.log('----');
+        console.log('\n----');
         throw 'Manual exit triggered at line ' + line;
     }
 
@@ -400,6 +517,17 @@ var lexer = {
                 continue;
             }
 
+            // semi colon
+            if (src[char] === ';') {
+                ++char;
+                continue;
+            }
+
+            // end braced area
+            if (src[char] === '}') {
+                return;
+            }
+
             // reserved keyword
             var matches =
                 new RegExp('(' + this._get_reserved().join('|') + ')')
@@ -410,6 +538,11 @@ var lexer = {
                 // execute the handling for that keyword
                 constructs[matches[0]]();
                 continue;
+            }
+
+            // function call
+            if (/^[a-zA-Z_]+\s*?\(/gi.test(src.slice(char))) {
+                expressions.evaluate();
             }
 
             // file done
@@ -426,6 +559,7 @@ var lexer = {
         return [
             'echo',
             'func',
+            'return',
             'var'
         ];
     }

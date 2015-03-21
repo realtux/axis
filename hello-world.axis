@@ -1,5 +1,6 @@
 func hello(message) {
     echo message;
+    echo message;
 }
 
 // some comment to ignore
@@ -13,5 +14,6 @@ echo 3;
 echo 789;
 var variable = 'brian\n';
 echo variable;
-echo 'end';
-hello('im awesome');
+echo 'end\n';
+hello('im awesome\n');
+hello('im awesomer\n');
