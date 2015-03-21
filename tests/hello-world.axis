@@ -8,11 +8,15 @@ func goodbye(msg) {
     echo msg;
 
     another_goodbye(msg, 'outer\n');
+    another_goodbye(msg, 'outer\n');
+    another_goodbye(msg, 'outer\n');
 }
 
 func hello(message) {
     echo message;
     echo message;
+    echo message;
+    goodbye('byebyebyebyebyebyebye\n');
     goodbye('byebyebyebyebyebyebye\n');
 }
 
@@ -29,6 +33,8 @@ var variable = 'brian\n';
 echo variable;
 echo 'end\n';
 hello('im awesome\n');
+hello('im awesomer\n');
+hello('im awesomer\n');
 hello('im awesomer\n');
 // comment
 echo 'mo money';
