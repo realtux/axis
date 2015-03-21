@@ -1,5 +1,12 @@
 // some comment to ignore
-echo 'hello asdf world\n';echo 'hello asdf world';
+echo 'hello asdf world\n';
+echo 'hello asdf world';
 echo 'hello asdf world\n';
 echo 1;
-echo 2;echo 3;echo 789;
+echo 2;
+// comment
+echo 3;
+echo 789;
+var variable = 'brian\n';
+echo variable;
+echo 'end';

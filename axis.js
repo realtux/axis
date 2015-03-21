@@ -80,6 +80,36 @@ var expressions = {
                 }
             }
 
+            // variable
+            if (/[a-zA-Z_]/gi.test(src[char])) {
+                var variable_name = '';
+
+                for (;;) {
+                    // fail on newline or endline
+                    if (src[char] === '\n' || src[char] === undefined) {
+                        errors.parse('Unterminated expression');
+                    }
+
+                    // break
+                    if (/[^a-zA-Z_]/gi.test(src[char])) {
+                        break;
+                    }
+
+                    // append string version of integer
+                    variable_name += src[char];
+                    ++char;
+                }
+
+                // check if the variable is in the symbol table
+                var variable_value = axis.symbols.variables[variable_name];
+
+                if (variable_value === undefined) {
+                    errors.warning('Undefined variable \'' + variable_name + '\'');
+                } else {
+                    output_buffer += variable_value;
+                }
+            }
+
             // end of expression
             if (src[char] === ';') {
                 ++char;
@@ -98,6 +128,7 @@ var expressions = {
 
 var constructs = {
 
+    // generic output
     echo: function() {
         char += 4;
 
@@ -106,6 +137,47 @@ var constructs = {
         var value = expressions.evaluate();
 
         process.stdout.write(value);
+    },
+
+    // variable assignment
+    var: function() {
+        char += 3;
+
+        if (src[char] !== ' ') {
+            errors.parse('Expected space after \'var\'');
+        }
+
+        parser.eat_space();
+
+        var variable_name = '';
+
+        for (;;) {
+            // fail on newline or endline
+            if (src[char] === '\n' || src[char] === undefined) {
+                errors.parse('Unterminated expression');
+            }
+
+            // break
+            if (/[^a-zA-Z_]/gi.test(src[char])) {
+                break;
+            }
+
+            // append string version of integer
+            variable_name += src[char];
+            ++char;
+        }
+
+        parser.eat_space();
+
+        if (src[char] !== '=') {
+            errors.parse('Expected =');
+        }
+
+        ++char;
+
+        parser.eat_space();
+
+        axis.symbols.variables[variable_name] = expressions.evaluate();
     }
 
 };
@@ -158,7 +230,7 @@ var lexer = {
             }
 
             // eat comment
-            if (src.slice(char).match(/\/\//)) {
+            if (src.slice(char, char + 2).match(/\/\//)) {
                 for (;;) {
                     ++char;
                     if (src[char] === '\n') {
@@ -192,7 +264,8 @@ var lexer = {
 
     _get_reserved: function() {
         return [
-            'echo'
+            'echo',
+            'var'
         ];
     }
 
