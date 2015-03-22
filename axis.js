@@ -29,224 +29,233 @@ var expressions = {
     evaluate: function() {
         var output_buffer = '';
 
-        for (;;) {
-            // bool/null
-            var boolnull =
-                new RegExp('(true|false|null)')
-                    .exec(src.slice(char, char + 5));
+        // space
+        if (src[char] == ' ') {
+            parser.eat_space();
+        }
 
-            if (boolnull !== null) {
-                switch (boolnull[0]) {
-                    case 'true':
-                        char += 4;
-                        output_buffer = true;
-                        break;
-                    case 'false':
-                        char += 5;
-                        output_buffer = false;
-                        break;
-                    case 'null':
-                        char += 4;
-                        output_buffer = null;
-                        break;
-                    default:
-                        // ignored
-                }
+        // bool/null
+        var boolnull =
+            new RegExp('(true|false|null)')
+                .exec(src.slice(char, char + 5));
+
+        if (boolnull !== null) {
+            switch (boolnull[0]) {
+                case 'true':
+                    char += 4;
+                    output_buffer = true;
+                    break;
+                case 'false':
+                    char += 5;
+                    output_buffer = false;
+                    break;
+                case 'null':
+                    char += 4;
+                    output_buffer = null;
+                    break;
+                default:
+                    // ignored
             }
+        }
 
-            // string
-            if (src[char] === '\'') {
-                ++char;
+        // string
+        if (src[char] === '\'') {
+            ++char;
 
-                for (;;) {
-                    // fail on newline
-                    if (src[char] === '\n' || src[char] === undefined) {
-                        errors.parse('Unterminated string');
-                    }
+            for (;;) {
+                // fail on newline
+                if (src[char] === '\n' || src[char] === undefined) {
+                    errors.parse('Unterminated string');
+                }
 
-                    // account for escape
-                    if (src[char] === '\'' && src[char - 1] !== '\\') {
-                        ++char;
-                        break;
-                    }
-
-                    // replace newline
-                    if (src[char] === '\\') {
-                        // peek forward
-                        if (src[char + 1] == 'n') {
-                            output_buffer += '\n';
-                            ++char;
-                            ++char;
-                            continue;
-                        }
-                    }
-
-                    output_buffer += src[char];
+                // account for escape
+                if (src[char] === '\'' && src[char - 1] !== '\\') {
                     ++char;
-                }
-            }
-
-            // integer
-            if (/[1-9]/gi.test(src[char])) {
-                var fullint = '';
-
-                for (;;) {
-                    // fail on newline or endline
-                    if (src[char] === '\n' || src[char] === undefined) {
-                        errors.parse('Unterminated expression');
-                    }
-
-                    // break
-                    if (/[^1-9]/gi.test(src[char])) {
-                        output_buffer += fullint;
-                        break;
-                    }
-
-                    // append string version of integer
-                    fullint += src[char];
-                    ++char;
-                }
-            }
-
-            // function
-            if (/^[a-zA-Z_]+\s*?\(/gi.test(src.slice(char))) {
-                //errors.exit();
-                var function_name = '';
-
-                for (;;) {
-                    // fail on newline or endline
-                    if (src[char] === '\n' || src[char] === undefined) {
-                        errors.parse('Unterminated function');
-                    }
-
-                    if (src[char] === ' ') {
-                        ++char;
-                        continue;
-                    }
-
-                    // break
-                    if (/[^a-zA-Z_]+/gi.test(src[char])) {
-                        if (src[char] === '(') {
-                            break;
-                        }
-
-                        errors.parse('Undefined symbol in function call');
-                    }
-
-                    function_name += src[char];
-                    ++char;
-                }
-
-                // push past lparen
-                ++char;
-
-                // remove space between lparen and first argument
-                parser.eat_space();
-
-                // check for function
-                if (axis.symbols.functions[function_name] === undefined) {
-                    errors.fatal('Undefined function \'' + function_name + '\'');
-                }
-
-                var argument_values = [];
-
-                for (;;) {
-                    argument_values.push(expressions.evaluate());
-
-                    if (src[char] === ',') {
-                        ++char;
-                        // remove space between comma and argument
-                        parser.eat_space();
-                        continue;
-                    }
-
                     break;
                 }
 
-                // remove space between last argument and rparen
-                parser.eat_space();
-
-                if (src[char] !== ')') {
-                    errors.parse('Unclosed function call');
-                }
-
-                // check if the stack is empty
-                if (axis.stack.length === 0) {
-                    // add char and line to the stack
-                    axis.stack.push({
-                        char_pos: char,
-                        line_pos: line
-                    });
-                } else {
-                    axis.stack[axis.stack.length - 1].char_pos = char;
-                    axis.stack[axis.stack.length - 1].line_pos = line;
-                }
-
-                // add the stack frame
-                var frame_function = axis.symbols.functions[function_name];
-
-                // add the argument values
-                frame_function.argument_values = argument_values;
-
-                axis.stack.push(frame_function);
-
-                functions.call();
-            }
-
-            // variable
-            if (/[a-zA-Z_]/gi.test(src[char])) {
-                var variable_name = '';
-
-                for (;;) {
-                    // fail on newline or endline
-                    if (src[char] === '\n' || src[char] === undefined) {
-                        errors.parse('Unterminated expression');
+                // replace newline
+                if (src[char] === '\\') {
+                    // peek forward
+                    if (src[char + 1] == 'n') {
+                        output_buffer += '\n';
+                        ++char;
+                        ++char;
+                        continue;
                     }
+                }
 
-                    // break
-                    if (/[^a-zA-Z_]/gi.test(src[char])) {
+                output_buffer += src[char];
+                ++char;
+            }
+        }
+
+        // integer
+        if (/[1-9]/gi.test(src[char])) {
+            var fullint = '';
+
+            for (;;) {
+                // fail on newline or endline
+                if (src[char] === '\n' || src[char] === undefined) {
+                    errors.parse('Unterminated expression');
+                }
+
+                // break
+                if (/[^1-9]/gi.test(src[char])) {
+                    output_buffer += fullint;
+                    break;
+                }
+
+                // append string version of integer
+                fullint += src[char];
+                ++char;
+            }
+        }
+
+        // function
+        if (/^[a-zA-Z_]+\s*?\(/gi.test(src.slice(char))) {
+            //errors.exit();
+            var function_name = '';
+
+            for (;;) {
+                // fail on newline or endline
+                if (src[char] === '\n' || src[char] === undefined) {
+                    errors.parse('Unterminated function');
+                }
+
+                if (src[char] === ' ') {
+                    ++char;
+                    continue;
+                }
+
+                // break
+                if (/[^a-zA-Z_]+/gi.test(src[char])) {
+                    if (src[char] === '(') {
                         break;
                     }
 
-                    // append string version of integer
-                    variable_name += src[char];
-                    ++char;
+                    errors.parse('Undefined symbol in function call');
                 }
 
-                // check if the variable is in the symbol table
-                var variable_value = axis.symbols.variables[variable_name];
+                function_name += src[char];
+                ++char;
+            }
 
-                if (variable_value === undefined) {
-                    // see if the stack is larger than one
-                    if (axis.stack.length > 1) {
-                        // another chance to find this variable
-                        var stack_frame = axis.stack[axis.stack.length - 1];
+            // push past lparen
+            ++char;
 
-                        stack_frame.arguments.forEach(function(argument, index) {
-                            if (argument === variable_name) {
-                                variable_value = stack_frame.argument_values[index];
-                            }
-                        });
+            // remove space between lparen and first argument
+            parser.eat_space();
 
-                        // last chance
-                        if (variable_value === undefined) {
-                            errors.warning('Undefined variable \'' + variable_name + '\'');
+            // check for function
+            if (axis.symbols.functions[function_name] === undefined) {
+                errors.fatal('Undefined function \'' + function_name + '\'');
+            }
+
+            var argument_values = [];
+
+            for (;;) {
+                argument_values.push(expressions.evaluate());
+
+                if (src[char] === ',') {
+                    ++char;
+                    // remove space between comma and argument
+                    parser.eat_space();
+                    continue;
+                }
+
+                break;
+            }
+
+            // remove space between last argument and rparen
+            parser.eat_space();
+
+            if (src[char] !== ')') {
+                errors.parse('Unclosed function call');
+            }
+
+            // check if the stack is empty
+            if (axis.stack.length === 0) {
+                // add char and line to the stack
+                axis.stack.push({
+                    char_pos: char,
+                    line_pos: line
+                });
+            } else {
+                axis.stack[axis.stack.length - 1].char_pos = char;
+                axis.stack[axis.stack.length - 1].line_pos = line;
+            }
+
+            // add the stack frame
+            var frame_function = axis.symbols.functions[function_name];
+
+            // add the argument values
+            frame_function.argument_values = argument_values;
+
+            axis.stack.push(frame_function);
+
+            functions.call();
+        }
+
+        // variable
+        if (/[a-zA-Z_0-9]/gi.test(src[char])) {
+            var variable_name = '';
+
+            for (;;) {
+                // fail on newline or endline
+                if (src[char] === '\n' || src[char] === undefined) {
+                    errors.parse('Unterminated expression');
+                }
+
+                // break
+                if (/[^a-zA-Z_0-9]/gi.test(src[char])) {
+                    break;
+                }
+
+                // append string version of integer
+                variable_name += src[char];
+                ++char;
+            }
+
+            // check if the variable is in the symbol table
+            var variable_value = axis.symbols.variables[variable_name];
+
+            if (variable_value === undefined) {
+                // see if the stack is larger than one
+                if (axis.stack.length > 1) {
+                    // another chance to find this variable
+                    var stack_frame = axis.stack[axis.stack.length - 1];
+
+                    stack_frame.arguments.forEach(function(argument, index) {
+                        if (argument === variable_name) {
+                            variable_value = stack_frame.argument_values[index];
                         }
-                    } else {
+                    });
+
+                    // last chance
+                    if (variable_value === undefined) {
                         errors.warning('Undefined variable \'' + variable_name + '\'');
                     }
+                } else {
+                    errors.warning('Undefined variable \'' + variable_name + '\'');
                 }
-
-                output_buffer += variable_value;
             }
 
-            // newline means missing semi colon
-            if (src[char] === '\n' || src[char] === undefined) {
-                errors.parse('Unterminated expression');
-            }
-
-            return output_buffer;
+            output_buffer += variable_value;
         }
+
+        // concatenation
+        if (src[char] === ',') {
+            ++char;
+            output_buffer += expressions.evaluate();
+        }
+
+        // newline means missing semi colon
+        if (src[char] === '\n' || src[char] === undefined) {
+            errors.parse('Unterminated expression');
+        }
+
+        return output_buffer;
     }
 
 };
@@ -412,6 +421,135 @@ var constructs = {
         axis.symbols.functions[func.name] = func;
     },
 
+    // if/else/elseif handling
+    if: function() {
+        char += 2;
+
+        // define valid operators
+        var operators = [
+            '===',
+            '==',
+            '!=',
+            '!==',
+            '<=',
+            '>='
+        ];
+
+        // eat space from if to comparison
+        parser.eat_space();
+
+        // evaluate the first condition
+        var value1 = expressions.evaluate();
+
+        // eat space between first condition and operator
+        parser.eat_space();
+
+        // extract the operator in use
+        var operator =
+            new RegExp('^([=!<>]{2,3})')
+                .exec(src.slice(char))[0];
+
+        // if the operator is null or not part of the defined operators, error
+        if (operator == null || operators.indexOf(operator) == -1) {
+            errors.parse('Strange comparison operator detected');
+        }
+
+        // push past operator
+        char += operator.length;
+
+        // eat space from operator to second condition
+        parser.eat_space();
+
+        // evalute the second condition
+        var value2 = expressions.evaluate();
+
+        // eat space between the second condition and if block lcurly
+        parser.eat_space();
+
+        // check to make sure that character is an lcurly
+        if (src[char] !== '{') {
+            error.parse('Expected { after conditional');
+        }
+
+        var result = null;
+
+        // evaluate the two conditions
+        switch (operator) {
+            case '===':
+                result = (value1 === value2);
+                break;
+            case '==':
+                result = (value1 == value2);
+                break;
+            case '!=':
+                result = (value1 != value2);
+                break;
+            case '!==':
+                result = (value1 !== value2);
+                break;
+            case '<=':
+                result = (value1 <= value2);
+                break;
+            case '<':
+                result = (value1 < value2);
+                break;
+            case '>=':
+                result = (value1 >= value2);
+                break;
+            case '>':
+                result = (value1 > value2);
+                break;
+            default:
+                errors.parse('Invalid operator');
+        }
+
+        if (result === true) {
+            // lex the true block
+            lexer.lex();
+
+            // push past the rcurly
+            ++char;
+
+            // eat space between rcurly and possible else/elseif
+            parser.eat_space();
+
+            if (src.slice(char, char + 6) === 'elseif') {
+                char += 6;
+                // eat parens
+                parser.eat_braced_block();
+            } else if (src.slice(char, char + 4) === 'else') {
+                char += 4;
+                parser.eat_braced_block();
+            }
+        } else {
+            // eat the true braced block
+            parser.eat_braced_block();
+
+            // eat space between rcurly and possible else/elseif
+            parser.eat_space();
+
+            if (src.slice(char, char + 6) === 'elseif') {
+                char += 4;
+                constructs.if();
+            } else if (src.slice(char, char + 4) === 'else') {
+                char += 4;
+
+                // eat space between else and lcurly
+                parser.eat_space();
+
+                if (src[char] !== '{') {
+                    errors.parse('Expected { after conditional');
+                }
+
+                // lex the false block
+                lexer.lex();
+            }
+
+            // push past ending rcurly
+            ++char;
+        }
+    },
+
     // return handling
     return: function() {
 
@@ -436,7 +574,7 @@ var constructs = {
             }
 
             // break
-            if (/[^a-zA-Z_]/gi.test(src[char])) {
+            if (/[^a-zA-Z_0-9]/gi.test(src[char])) {
                 break;
             }
 
@@ -464,17 +602,17 @@ var errors = {
 
     warning: function(message) {
         console.log('\n----');
-        throw 'Axis Warning: ' + message + ' at line ' + line;
+        throw 'Axis Warn: ' + message + ' at line ' + line;
     },
 
     parse: function(message) {
         console.log('\n----');
-        throw 'Axis Parse Error: ' + message + ' at line ' + line;
+        throw 'Axis Parse: ' + message + ' at line ' + line;
     },
 
     fatal: function(message) {
         console.log('\n----');
-        throw 'Axis Fatal Error: ' + message + ' at line ' + line;
+        throw 'Axis Fatal: ' + message + ' at line ' + line;
     },
 
     exit: function(message) {
@@ -496,6 +634,44 @@ var parser = {
 
             break;
         }
+    },
+
+    eat_braced_block: function() {
+        // push past the true block
+        var nested_curly = 0;
+
+        // push past lcurly
+        ++char;
+
+        for (;;) {
+            // fail on endline
+            if (src[char] === undefined) {
+                errors.parse('Unclosed brace block');
+            }
+
+            if (src[char] === '\n') {
+                ++line;
+            }
+
+            // check for end declaration
+            if (src[char] === '}' && nested_curly === 0) {
+                break;
+            }
+
+            // check for new opening lcurly
+            if (src[char] === '{') {
+                ++nested_curly;
+            }
+
+            // check for end nested closing rcurly
+            if (src[char] === '}') {
+                --nested_curly;
+            }
+
+            ++char;
+        }
+
+        ++char;
     }
 
 };
@@ -521,7 +697,7 @@ var lexer = {
             if (src.slice(char, char + 2).match(/\/\//)) {
                 for (;;) {
                     ++char;
-                    if (src[char] === '\n') {
+                    if (src[char] === '\n' || src[char] === undefined) {
                         break;
                     }
                 }
@@ -569,6 +745,7 @@ var lexer = {
         return [
             'echo',
             'func',
+            'if',
             'return',
             'var'
         ];
@@ -580,7 +757,7 @@ try {
     // do it
     lexer.lex();
 
-    console.log('\n\n------', 'Execution complete, read', line, 'line(s)');
+    console.log('\n\n------', 'execution complete, read', line, 'line(s)');
     console.log('------', ((Date.now() - axis.exec_start) / 1000).toFixed(3), 'seconds');
 } catch (err) {
     console.log(err.toString());

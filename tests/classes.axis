@@ -1,3 +1,16 @@
+interface something {
+
+}
+
+class [something]base {
+
+    // constructor
+    base() {
+
+    }
+
+}
+
 class calculator -> base {
 
     pub func add(none, ntwo) {
