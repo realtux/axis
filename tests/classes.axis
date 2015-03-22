@@ -13,7 +13,7 @@ class [something]base {
 
 class calculator -> base {
 
-    pub func add(none, ntwo) {
+    pub fn add(none, ntwo) {
         return none + ntwo;
     }
 

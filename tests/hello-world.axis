@@ -1,10 +1,10 @@
-func another_goodbye(mone, mtwo) {
+fn another_goodbye(mone, mtwo) {
     echo mtwo;
     echo mone;
     echo mtwo;
 }
 
-func goodbye(msg) {
+fn goodbye(msg) {
     echo msg;
 
     another_goodbye(msg, 'outer\n');
@@ -12,7 +12,7 @@ func goodbye(msg) {
     another_goodbye(msg, 'outer\n');
 }
 
-func hello(message) {
+fn hello(message) {
     echo message;
     echo message;
     echo message;

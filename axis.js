@@ -195,6 +195,12 @@ var expressions = {
             axis.stack.push(frame_function);
 
             functions.call();
+
+            var return_value = axis.stack[axis.stack.length - 1].return_value
+
+            if (return_value !== undefined) {
+                output_buffer += return_value;
+            }
         }
 
         // variable
@@ -245,7 +251,7 @@ var expressions = {
         }
 
         // concatenation
-        if (src[char] === ',') {
+        if (src[char] === '.') {
             ++char;
             output_buffer += expressions.evaluate();
         }
@@ -272,6 +278,10 @@ var functions = {
         // lex
         lexer.lex();
 
+        // add return value to previous stack item
+        axis.stack[axis.stack.length - 2].return_value =
+            axis.stack[axis.stack.length - 1].return_value;
+
         // remove the top stack and move the cursor back
         axis.stack.pop();
 
@@ -293,17 +303,17 @@ var constructs = {
     },
 
     // function declaration
-    func: function() {
+    fn: function() {
         var func = {
             char_pos: char,
             name: '',
             arguments: [],
-            body_line: null,
-            body_start: null,
-            body_end: null
+            body_line: 0,
+            body_start: 0,
+            body_end: 0
         };
 
-        char += 4;
+        char += 2;
 
         parser.eat_space();
 
@@ -329,6 +339,8 @@ var constructs = {
         // pass lparen
         ++char;
 
+        // eat space between lparen and first argument
+        parser.eat_space();
 
         // loop over each possible argument
         for (;;) {
@@ -343,7 +355,7 @@ var constructs = {
                 }
 
                 // break on non alpha+_ character
-                if (/[^a-zA-Z_]/gi.test(src[char])) {
+                if (/[^a-zA-Z_0-9]/gi.test(src[char])) {
                     break;
                 }
 
@@ -468,7 +480,7 @@ var constructs = {
 
         // check to make sure that character is an lcurly
         if (src[char] !== '{') {
-            error.parse('Expected { after conditional');
+            errors.parse('Expected { after conditional');
         }
 
         var result = null;
@@ -552,7 +564,13 @@ var constructs = {
 
     // return handling
     return: function() {
+        char += 6;
 
+        // set the return value of the function call
+        axis.stack[axis.stack.length - 1].return_value = expressions.evaluate();
+
+        // bypass everything to closing rcurly
+        char = axis.stack[axis.stack.length - 1].body_end;
     },
 
     // variable assignment
@@ -730,7 +748,7 @@ var lexer = {
 
             // function call
             if (/^[a-zA-Z_]+\s*?\(/gi.test(src.slice(char))) {
-                expressions.evaluate();
+                return expressions.evaluate();
             }
 
             // file done
@@ -744,7 +762,7 @@ var lexer = {
     _get_reserved: function() {
         return [
             'echo',
-            'func',
+            'fn',
             'if',
             'return',
             'var'

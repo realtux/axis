@@ -1,0 +1,37 @@
+fn get_g(msg, msg2) {
+    return msg2;
+}
+
+fn get_f() {
+    echo 'in f\n';
+    return get_g(null, '7 return result');
+}
+
+fn get_e() {
+    echo 'in e\n';
+    return get_f();
+}
+
+fn get_d() {
+    echo 'in d\n';
+    return get_e();
+}
+
+fn get_c() {
+    echo 'in c\n';
+    return get_d();
+}
+
+fn get_b() {
+    echo 'in b\n';
+    return get_c();
+}
+
+fn get_a() {
+    echo 'in a\n';
+    return get_b();
+
+    echo 'not after return!';
+}
+
+echo get_a();
