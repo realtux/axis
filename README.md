@@ -1,5 +1,5 @@
 # Axis 0.1-alpha
-The fun and useless toy language written in JavaScript. Executed with the standard Node.js CLI binary, Axis is ultimately JIT compiled with Google's V8 Engine. By being backed by Node.js, Axis gains access to the low-level APIs provided by Node.js's core. Current benchmarks have Axis being roughly 50% the speed of Node.js. The goal is to get Axis to run at 80% the speed of Node.js or more.
+The fun and useless toy language written in JavaScript. Axis is a multi-paradigm, scripted, optionally object-oriented, imperative programming language. Executed with the standard Node.js CLI binary, Axis is ultimately JIT compiled with Google's V8 Engine. By being backed by Node.js, Axis gains access to the low-level APIs provided by Node.js's core. Current benchmarks have Axis being roughly 50% the speed of Node.js. The goal is to get Axis to run at 80% the speed of Node.js or more.
 
 Axis uses peek, read, and rewind interpretation and constructs the object model in memory until it needs to be used.
 
