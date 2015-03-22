@@ -31,7 +31,7 @@ fn get_a() {
     echo 'in a\n';
     return get_b();
 
-    echo 'not after return!';
+    echo 'i wont execute, cursor jumps past me!';
 }
 
 echo get_a();

@@ -1,20 +1,52 @@
-interface something {
+class base {
 
-}
+    pri n1;
+    pri n2;
 
-class [something]base {
+    +() {
+        // constructor
+        this:n1 = 0;
+        this:n2 = 0;
+    }
 
-    // constructor
-    base() {
+    pri fn add() {
+        return this:n1 + this:n2;
+    }
 
+    pri fn sub() {
+        return this:n1 - this:n2;
+    }
+
+    -() {
+        // destructor
     }
 
 }
 
 class calculator -> base {
 
-    pub fn add(none, ntwo) {
-        return none + ntwo;
+    pub fn math(n1, n2) {
+        this:n1 = n1;
+        this:n2 = n2;
+
+        echo this:add();
+        echo this:sub();
     }
 
 }
+
+var calc = +calculator;
+calc:math();
+
+// sample free form json object/array
+var something = {
+    'asdf' -> 'asd',
+    'somethings' -> [
+        1,
+        2,
+        3,
+        {
+            'num' -> 4,
+        }
+    ]
+};
