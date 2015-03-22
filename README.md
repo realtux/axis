@@ -3,6 +3,26 @@ Axis is the fun and useless toy language written in JavaScript. Axis is a multi-
 
 Axis uses peek, read, and rewind interpretation and constructs the object model in memory until it needs to be used.
 
+##### What does Axis look like?
+```go
+// new function
+fn say_hello(msg) {
+  if msg { // truthy/falsy conditionals
+    return msg;
+  } else {
+    return 'hello!';
+  }
+}
+
+// set a variable
+var name = 'axis';
+
+// do a conditional
+if name == 'axis' {
+  echo say_hello(); // argument optional
+}
+```
+
 ## Change Log
 
 #### v0.1-alpha
