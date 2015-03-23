@@ -26,6 +26,7 @@ if name == 'axis' {
 ## Change Log
 
 #### v0.1-alpha
+- Stack traces
 - Code bypass after return statement
 - Return values
 - Expression concatenation

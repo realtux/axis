@@ -250,6 +250,9 @@ var expressions = {
             output_buffer += variable_value;
         }
 
+        // eat space ahead of possible concatenation
+        parser.eat_space();
+
         // concatenation
         if (src[char] === '.') {
             ++char;
@@ -761,6 +764,7 @@ var lexer = {
 
     _get_reserved: function() {
         return [
+            'class',
             'echo',
             'fn',
             'if',
@@ -775,8 +779,23 @@ try {
     // do it
     lexer.lex();
 
-    console.log('\n\n------', 'execution complete, read', line, 'line(s)');
+    console.log('\n\n------', 'execution failed, read', line, 'line(s)');
     console.log('------', ((Date.now() - axis.exec_start) / 1000).toFixed(3), 'seconds');
 } catch (err) {
     console.log(err.toString());
+    console.log('Stack Trace:');
+
+    if (axis.stack.length > 0) {
+        for (var i = axis.stack.length; i > 0; --i) {
+            if (i == axis.stack.length) {
+                console.log('  -> ' + axis.stack[i - 1].name + '():' + line);
+            } else if (i == 1) {
+                console.log('  -> main:' + axis.stack[i - 1].line_pos);
+            } else {
+                console.log('  -> ' + axis.stack[i - 1].name + '():' + axis.stack[i - 1].line_pos);
+            }
+        }
+    } else {
+        console.log('  -> main:' + line);
+    }
 }
