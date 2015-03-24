@@ -1,0 +1,5 @@
+fn hello(msg, asdf, a, b) {
+  echo 'hello';
+}
+
+hello();

@@ -114,7 +114,6 @@ var expressions = {
 
         // function
         if (/^[a-zA-Z_]+\s*?\(/gi.test(src.slice(char))) {
-            //errors.exit();
             var function_name = '';
 
             for (;;) {
@@ -269,6 +268,22 @@ var expressions = {
 
 };
 
+var classes = {
+
+    evaluate_member: function() {
+
+    },
+
+    evaluate_property: function() {
+
+    },
+
+    evaluate_method: function() {
+
+    }
+
+};
+
 var functions = {
 
     call: function() {
@@ -295,6 +310,50 @@ var functions = {
 };
 
 var constructs = {
+
+    // classes/objects
+    class: function() {
+        char += 5;
+
+        parser.eat_space();
+
+        var class_def = {
+            char_pos: char,
+            name: '',
+            arguments: [],
+            body_line: 0,
+            body_start: 0,
+            body_end: 0
+        };
+
+        for (;;) {
+            // fail on newline or endline
+            if (src[char] === '\n' || src[char] === undefined) {
+                errors.parse('Improper class declaration');
+            }
+
+            // break
+            if (/[^a-zA-Z]/gi.test(src[char])) {
+                parser.eat_space();
+                if (src[char] !== '{') {
+                    errors.parse('Unexpected symbol in class declaration');
+                }
+                break;
+            }
+
+            class_def.name += src[char];
+            ++char;
+        }
+
+        // eat space between class name and lcurly
+        parser.eat_space();
+
+        // push past lcurly
+        ++char;
+
+        console.log(char, src[char-1], src[char], src[char+1]);
+        errors.exit();
+    },
 
     // generic output
     echo: function() {
@@ -762,14 +821,84 @@ var lexer = {
         }
     },
 
+    class_lex: function() {
+        for (;;) {
+            // eat space
+            if (src[char] === ' ') {
+                parser.eat_space();
+                continue;
+            }
+
+            // end newline and increment line
+            if (src[char] === '\n') {
+                ++char;
+                ++line;
+                continue;
+            }
+
+            // eat comment
+            if (src.slice(char, char + 2).match(/\/\//)) {
+                for (;;) {
+                    ++char;
+                    if (src[char] === '\n' || src[char] === undefined) {
+                        break;
+                    }
+                }
+
+                continue;
+            }
+
+            // semi colon
+            if (src[char] === ';') {
+                ++char;
+                continue;
+            }
+
+            // reserved class keyword
+            var matches =
+                new RegExp('^(' + this._get_class_reserved().join('|') + ')')
+                    .exec(src.slice(char));
+
+            // check for a matched class reserved keyword
+            if (matches !== null) {
+                // execute the handling for that keyword
+                constructs[matches[0]]();
+                continue;
+            }
+
+            // method definition
+            if (/^[a-zA-Z_]+\s*?\(/gi.test(src.slice(char))) {
+                // not sure yet
+            }
+
+            // class done
+            if (src[char] === '}') {
+                // we out
+                break;
+            }
+
+            // analyze next character
+            ++char;
+        }
+    },
+
     _get_reserved: function() {
         return [
-            'class',
-            'echo',
-            'fn',
-            'if',
-            'return',
-            'var'
+            'class',  // classes
+            'echo',   // output
+            'fn',     // generic functions
+            'if',     // conditionals
+            'return', // method returns
+            'var'     // variable assignment
+        ];
+    },
+
+    _get_class_reserved: function() {
+        return [
+            'fn',  // generic functions
+            'pub', // public properties/methods
+            'pro', // protected properties/methods
+            'pri'  // private properties/methods
         ];
     }
 
@@ -779,7 +908,7 @@ try {
     // do it
     lexer.lex();
 
-    console.log('\n\n------', 'execution failed, read', line, 'line(s)');
+    console.log('\n\n------', 'execution succeeded, read', line, 'line(s)');
     console.log('------', ((Date.now() - axis.exec_start) / 1000).toFixed(3), 'seconds');
 } catch (err) {
     console.log(err.toString());
