@@ -2,14 +2,22 @@
 // axis lang, by b
 //
 
+var inspector = require('util');
+
 // global things
 axis = {
     symbols: {
         variables: {},
+        objects: {},
         functions: {}
     },
     stack: [],
     exec_start: 0
+};
+
+// contextual parameters
+context = {
+    current_object_lex: null
 };
 
 axis.exec_start = Date.now();
@@ -268,18 +276,80 @@ var expressions = {
 
 };
 
-var classes = {
+var objects = {
 
-    evaluate_member: function() {
+    evaluate_property: function(scope_type) {
+        // evaluate the property name
+        var property_name = '';
 
+        for (;;) {
+            // fail on newline or endline
+            if (src[char] === '\n' || src[char] === undefined) {
+                errors.parse('Unterminated object property definition');
+            }
+
+            // break
+            if (/[^a-zA-Z_0-9]/gi.test(src[char])) {
+                break;
+            }
+
+            // append char to variable name
+            property_name += src[char];
+            ++char;
+        }
+
+        parser.eat_space();
+
+        if (src[char] !== ';') {
+            errors.parse('Expecting end of property definition semicolon');
+        }
+
+        axis.symbols.objects[context.current_object_lex]
+            .properties[property_name] = {
+
+            scope: scope_type,
+            name: property_name,
+            value: null
+        };
     },
 
-    evaluate_property: function() {
+    evaluate_method: function(scope_type) {
+        // method template
+        var method = {
+            scope: scope_type,
+            char_pos: char,
+            name: null,
+            arguments: [],
+            body_line: 0,
+            body_start: 0,
+            body_end: 0
+        };
 
-    },
+        // evaluate the method name
+        var method_name = '';
 
-    evaluate_method: function() {
+        for (;;) {
+            // fail on newline or endline
+            if (src[char] === '\n' || src[char] === undefined) {
+                errors.parse('Unterminated object method definition');
+            }
 
+            // break
+            if (/[^a-zA-Z_0-9]/gi.test(src[char])) {
+                break;
+            }
+
+            // append char to variable name
+            method_name += src[char];
+            ++char;
+        }
+
+        method.name = method_name;
+
+        // eat space between method name and lparen
+        parser.eat_space();
+
+        functions.evaluate(method_name, scope_type);
     }
 
 };
@@ -305,98 +375,19 @@ var functions = {
 
         line = axis.stack[axis.stack.length - 1].line_pos;
         char = axis.stack[axis.stack.length - 1].char_pos;
-    }
-
-};
-
-var constructs = {
-
-    // classes/objects
-    class: function() {
-        char += 5;
-
-        parser.eat_space();
-
-        var class_def = {
-            char_pos: char,
-            name: '',
-            arguments: [],
-            body_line: 0,
-            body_start: 0,
-            body_end: 0
-        };
-
-        for (;;) {
-            // fail on newline or endline
-            if (src[char] === '\n' || src[char] === undefined) {
-                errors.parse('Improper class declaration');
-            }
-
-            // break
-            if (/[^a-zA-Z]/gi.test(src[char])) {
-                parser.eat_space();
-                if (src[char] !== '{') {
-                    errors.parse('Unexpected symbol in class declaration');
-                }
-                break;
-            }
-
-            class_def.name += src[char];
-            ++char;
-        }
-
-        // eat space between class name and lcurly
-        parser.eat_space();
-
-        // push past lcurly
-        ++char;
-
-        console.log(char, src[char-1], src[char], src[char+1]);
-        errors.exit();
     },
 
-    // generic output
-    echo: function() {
-        char += 4;
-
-        parser.eat_space();
-
-        process.stdout.write(expressions.evaluate());
-    },
-
-    // function declaration
-    fn: function() {
+    // evaluates from () to }
+    evaluate: function(function_name, scope_type) {
         var func = {
+            scope: scope_type || 'pub',
             char_pos: char,
-            name: '',
+            name: function_name,
             arguments: [],
             body_line: 0,
             body_start: 0,
             body_end: 0
         };
-
-        char += 2;
-
-        parser.eat_space();
-
-        for (;;) {
-            // fail on newline or endline
-            if (src[char] === '\n' || src[char] === undefined) {
-                errors.parse('Improper function declaration');
-            }
-
-            // break
-            if (/[^a-zA-Z_]/gi.test(src[char])) {
-                parser.eat_space();
-                if (src[char] !== '(') {
-                    errors.parse('Unexpected symbol in function declaration');
-                }
-                break;
-            }
-
-            func.name += src[char];
-            ++char;
-        }
 
         // pass lparen
         ++char;
@@ -427,7 +418,9 @@ var constructs = {
             }
 
             // argument iteration complete, push argument into func definition
-            func.arguments.push(current_argument);
+            if (current_argument) {
+                func.arguments.push(current_argument);
+            }
 
             // no comma means no more argument, break out
             if (src[char] !== ',') {
@@ -492,7 +485,195 @@ var constructs = {
 
         ++char;
 
-        axis.symbols.functions[func.name] = func;
+        // todo: merge this in with eat_space()
+        for (;;) {
+            if (src[char] === '\n') {
+                ++char;
+                ++line;
+            }
+
+            if (src[char] !== '\n') {
+                break;
+            }
+        }
+
+        if (context.current_object_lex) {
+            // add to current class being parsed
+            axis.symbols.objects[context.current_object_lex].methods[func.name] = func;
+        } else {
+            // add to global scope of functions
+            axis.symbols.functions[func.name] = func;
+        }
+    }
+
+};
+
+var constructs = {
+
+    // objects (class)
+    class: function() {
+        char += 5;
+
+        parser.eat_space();
+
+        var object = {
+            char_pos: char,
+            name: '',
+            arguments: [],
+            body_line: 0,
+            body_start: 0,
+            body_end: 0
+        };
+
+        for (;;) {
+            // fail on newline or endline
+            if (src[char] === '\n' || src[char] === undefined) {
+                errors.parse('Improper class declaration');
+            }
+
+            // break
+            if (/[^a-zA-Z]/gi.test(src[char])) {
+                parser.eat_space();
+
+                // check for "->" to symbolize extends
+                if (src.slice(char, char + 2) === '->') {
+                    char += 2;
+
+                    // eat space between -> and extended class
+                    parser.eat_space();
+
+                    var extending_class = '';
+
+                    for (;;) {
+                        // fail on newline or endline
+                        if (src[char] === '\n' || src[char] === undefined) {
+                            errors.parse('Improper class declaration');
+                        }
+
+                        if (/[^a-zA-Z]/gi.test(src[char])) {
+                            parser.eat_space();
+
+                            break;
+                        }
+
+                        extending_class += src[char];
+                        ++char;
+                    }
+
+                    // check symbol table for a matching class
+                    if (axis.symbols.objects[extending_class] === undefined) {
+                        errors.fatal('Undefined class \'' + extending_class + '\'');
+                    }
+                }
+
+                if (src[char] !== '{') {
+                    errors.parse('Unexpected symbol in class declaration');
+                }
+
+                break;
+            }
+
+            object.name += src[char];
+            ++char;
+        }
+
+        // eat space between class name and lcurly
+        parser.eat_space();
+
+        // push past lcurly
+        ++char;
+
+        context.current_object_lex = object.name;
+
+        axis.symbols.objects[object.name] = {
+            extends: extending_class || null,
+            implements: [],
+            properties: {},
+            methods: {}
+        };
+
+        lexer.object_lex();
+
+        // push past rcurly
+        ++char;
+    },
+
+    // constructor
+    constructor: function() {
+        char += 1;
+
+        functions.evaluate('_constructor');
+    },
+
+    // destructor
+    destructor: function() {
+        char += 1;
+
+        functions.evaluate('_destructor');
+    },
+
+    // pub/pri/pro
+    scope: function(scope_type) {
+        char += 3;
+
+        // eat up space between scope keyword and property/function name
+        parser.eat_space();
+
+        if (src[char] + src[char + 1] === 'fn') {
+            char += 2;
+
+            // eat space space between fn and method name
+            parser.eat_space();
+
+            if (/^[a-zA-Z_]+\s*?\(/gi.test(src.slice(char))) {
+                // definitely a method
+                objects.evaluate_method(scope_type);
+            } else {
+                errors.parse('Improper function declaration');
+            }
+        } else {
+            // is a property
+            objects.evaluate_property(scope_type);
+        }
+    },
+
+    // generic output
+    echo: function() {
+        char += 4;
+
+        parser.eat_space();
+
+        process.stdout.write(expressions.evaluate());
+    },
+
+    // function declaration
+    fn: function() {
+        char += 2;
+
+        parser.eat_space();
+
+        var function_name = '';
+
+        for (;;) {
+            // fail on newline or endline
+            if (src[char] === '\n' || src[char] === undefined) {
+                errors.parse('Improper function declaration');
+            }
+
+            // break
+            if (/[^a-zA-Z_]/gi.test(src[char])) {
+                parser.eat_space();
+                if (src[char] !== '(') {
+                    errors.parse('Unexpected symbol in function declaration');
+                }
+                break;
+            }
+
+            function_name += src[char];
+            ++char;
+        }
+
+        functions.evaluate(function_name);
     },
 
     // if/else/elseif handling
@@ -716,6 +897,18 @@ var parser = {
         }
     },
 
+    eat_comment: function() {
+        // loop over each character in the comment
+        for (;;) {
+            ++char;
+
+            // newline or end of the file, call it good
+            if (src[char] === '\n' || src[char] === undefined) {
+                break;
+            }
+        }
+    },
+
     eat_braced_block: function() {
         // push past the true block
         var nested_curly = 0;
@@ -775,13 +968,7 @@ var lexer = {
 
             // eat comment
             if (src.slice(char, char + 2).match(/\/\//)) {
-                for (;;) {
-                    ++char;
-                    if (src[char] === '\n' || src[char] === undefined) {
-                        break;
-                    }
-                }
-
+                parser.eat_comment();
                 continue;
             }
 
@@ -821,7 +1008,16 @@ var lexer = {
         }
     },
 
-    class_lex: function() {
+    /**
+     * only stuff that should show up in an object are
+     * +() = the constructor
+     * -() = the destructor
+     * pub/pro/pri properties
+     * pub/pro/pri methods
+     *
+     * anything else should show an axis fatal
+     */
+    object_lex: function() {
         for (;;) {
             // eat space
             if (src[char] === ' ') {
@@ -838,13 +1034,7 @@ var lexer = {
 
             // eat comment
             if (src.slice(char, char + 2).match(/\/\//)) {
-                for (;;) {
-                    ++char;
-                    if (src[char] === '\n' || src[char] === undefined) {
-                        break;
-                    }
-                }
-
+                parser.eat_comment();
                 continue;
             }
 
@@ -854,15 +1044,32 @@ var lexer = {
                 continue;
             }
 
-            // reserved class keyword
+            // constructor declaration
+            if (/\+\(\)/gi.test(src.slice(char, char + 3))) {
+                constructs.constructor();
+            }
+
+            // destructor declartion
+            if (/\-\(\)/gi.test(src.slice(char, char + 3))) {
+                constructs.destructor();
+            }
+
+            // reserved object keyword
             var matches =
-                new RegExp('^(' + this._get_class_reserved().join('|') + ')')
+                new RegExp('^(' + this._get_object_reserved().join('|') + ')')
                     .exec(src.slice(char));
 
-            // check for a matched class reserved keyword
+            // check for a matched object reserved keyword
             if (matches !== null) {
+                var match = matches[0];
+
+                if (match === 'pub' || match === 'pro' || match === 'pri') {
+                    constructs.scope(match);
+                    continue;
+                }
+
                 // execute the handling for that keyword
-                constructs[matches[0]]();
+                constructs[match]();
                 continue;
             }
 
@@ -871,7 +1078,7 @@ var lexer = {
                 // not sure yet
             }
 
-            // class done
+            // object done
             if (src[char] === '}') {
                 // we out
                 break;
@@ -884,7 +1091,7 @@ var lexer = {
 
     _get_reserved: function() {
         return [
-            'class',  // classes
+            'class',  // objects
             'echo',   // output
             'fn',     // generic functions
             'if',     // conditionals
@@ -893,9 +1100,8 @@ var lexer = {
         ];
     },
 
-    _get_class_reserved: function() {
+    _get_object_reserved: function() {
         return [
-            'fn',  // generic functions
             'pub', // public properties/methods
             'pro', // protected properties/methods
             'pri'  // private properties/methods
@@ -908,9 +1114,11 @@ try {
     // do it
     lexer.lex();
 
+    console.log(inspector.inspect(axis, false, null));
     console.log('\n\n------', 'execution succeeded, read', line, 'line(s)');
     console.log('------', ((Date.now() - axis.exec_start) / 1000).toFixed(3), 'seconds');
 } catch (err) {
+    console.log(inspector.inspect(axis, false, null));
     console.log(err.toString());
     console.log('Stack Trace:');
 
