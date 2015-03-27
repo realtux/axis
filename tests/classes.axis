@@ -1,50 +1,35 @@
 // sample base class
-class base {
 
-    pri n1;
-
-    +() {
-        // constructor
-        this:n1 = 0;
-        this:n2 = 0;
+class outerclass {
+    pub fn nailed_it() {
+        echo 'fucking nailed it';
     }
-
-    pri fn add(a,b,c,d,e,f,g) {
-        return this:n1 + this:n2;
-    }
-
 }
 
-// sample class that inherits from another class
-class calculator -> base {
+class coolio  {
 
-    pub fn math(n1, n2) {
-        this:n1 = n1;
-        this:n2 = n2;
+    pub useful;
 
-        echo this:add();
-        echo this:sub();
-    }
-
-    -() {
-        // destructor
+    pub fn hello(msg) {
+        var doit = +outerclass();
+        doit:nailed_it();
     }
 
 }
 
 // sample object instantiation
-var calc = +calculator;
-calc:math();
+var coolio = +coolio();
+coolio:hello();
 
 // sample free form json object/array
-var something = {
-    'asdf' -> 'asd',
-    'somethings' -> [
-        1,
-        2,
-        3,
-        {
-            'num' -> 4,
-        }
-    ]
-};
+//var something = {
+//    'asdf' -> 'asd',
+//    'somethings' -> [
+//        1,
+//        2,
+//        3,
+//        {
+//            'num' -> 4,
+//        }
+//    ]
+//};

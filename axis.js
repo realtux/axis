@@ -2,14 +2,18 @@
 // axis lang, by b
 //
 
+var crypto = require('crypto');
 var inspector = require('util');
 
 // global things
 axis = {
     symbols: {
-        variables: {},
-        objects: {},
-        functions: {}
+        variables: {}, // global variable scope
+        functions: {}, // global function scope
+
+        objects: {}, // object definition
+
+        object_instances: {} // instantiated versions of objects
     },
     stack: [],
     exec_start: 0
@@ -120,6 +124,99 @@ var expressions = {
             }
         }
 
+        // method call todo: save in re const
+        if (/^[a-zA-Z_0-9]+:[a-zA-Z_0-9]+\s*?\(/gi.test(src.slice(char))) {
+            // get the object name
+            var extracted_variable = parser.extract_word();
+
+            // push past the colon
+            ++char;
+
+            // get the object method
+            var extracted_method = parser.extract_word();
+
+            // check to make sure the variable exists
+            if (axis.symbols.variables[extracted_variable] === undefined) {
+                errors.fatal('Undefined variable \'' + extracted_variable + '\'')
+            }
+
+            var object_sum = axis.symbols
+                .variables[extracted_variable]
+                .slice(4);
+
+            var object_instance = axis.symbols.object_instances[object_sum];
+
+            if (object_instance === undefined) {
+                errors.fatal(extracted_variable + ' not an object instance');
+            }
+
+            var object_definition = axis.symbols.objects[object_instance.name];
+
+            // add the stack frame
+            var frame_function = axis.symbols.objects[object_instance.name].methods[extracted_method];
+
+            // check if method exists
+            if (frame_function === undefined) {
+                errors.fatal('Method \'' + extracted_method + '\' in object \'' +object_instance.name + '\' does not exist')
+            }
+
+            // push past lparen
+            ++char;
+
+            // remove space between lparen and first argument
+            parser.eat_space();
+
+            var argument_values = [];
+
+            for (;;) {
+                argument_values.push(expressions.evaluate());
+
+                if (src[char] === ',') {
+                    ++char;
+                    // remove space between comma and argument
+                    parser.eat_space();
+                    continue;
+                }
+
+                break;
+            }
+
+            // remove space between last argument and rparen
+            parser.eat_space();
+
+            if (src[char] !== ')') {
+                errors.parse('Unclosed function call');
+            }
+
+            // check if the stack is empty
+            if (axis.stack.length === 0) {
+                // add char and line to the stack
+                axis.stack.push({
+                    char_pos: char,
+                    line_pos: line
+                });
+            } else {
+                axis.stack[axis.stack.length - 1].char_pos = char;
+                axis.stack[axis.stack.length - 1].line_pos = line;
+            }
+
+            // add the argument values
+            frame_function.argument_values = argument_values;
+
+            axis.stack.push(frame_function);
+
+            functions.call();
+
+            var return_value = axis.stack[axis.stack.length - 1].return_value;
+
+            if (return_value !== undefined) {
+                output_buffer += return_value;
+            }
+
+            // push past rparen
+            ++char;
+        }
+
         // function
         if (/^[a-zA-Z_]+\s*?\(/gi.test(src.slice(char))) {
             var function_name = '';
@@ -156,6 +253,7 @@ var expressions = {
 
             // check for function
             if (axis.symbols.functions[function_name] === undefined) {
+                errors.stack(axis);
                 errors.fatal('Undefined function \'' + function_name + '\'');
             }
 
@@ -203,11 +301,14 @@ var expressions = {
 
             functions.call();
 
-            var return_value = axis.stack[axis.stack.length - 1].return_value
+            var return_value = axis.stack[axis.stack.length - 1].return_value;
 
             if (return_value !== undefined) {
                 output_buffer += return_value;
             }
+
+            // push past rparen
+            ++char;
         }
 
         // variable
@@ -255,6 +356,76 @@ var expressions = {
             }
 
             output_buffer += variable_value;
+        }
+
+        // object instantiation
+        if (src[char] === '+') {
+            ++char;
+
+            // eat space between plus and class
+            parser.eat_space();
+
+            var object_name = parser.extract_word();
+
+            // check to make sure there was an object name provided
+            if (!object_name) {
+                errors.parse('No object name specified');
+            }
+
+            var arguments = functions.arguments();
+
+            if (arguments.length > 0) {
+                // todo: constructor argument handling
+            }
+
+            var original_object_sum = '';
+
+            var generate_object_instance = function(childsum) {
+                // check to make sure this class exists
+                if (axis.symbols.objects[object_name] === undefined) {
+                    errors.fatal('Object \'' + object_name + '\' not defined');
+                }
+
+                var object_definition = axis.symbols.objects[object_name];
+
+                var properties = {};
+
+                Object.keys(object_definition.properties)
+                    .forEach(function(prop) {
+                        // todo: change once default properties exist
+                        properties[prop] = null;
+                    });
+
+                var objectsum = crypto
+                    .createHash('sha1')
+                    .update(Math.random() + new Date() + Date.now() / 2)
+                    .digest('hex');
+
+                if (!original_object_sum) {
+                    original_object_sum = objectsum;
+                }
+
+                if (childsum) {
+                    axis.symbols.object_instances[childsum].parent_sum = objectsum;
+                }
+
+                axis.symbols.object_instances[objectsum] = {
+                    name: object_name,
+                    parent: object_definition.extends,
+                    properties: properties
+                };
+
+                if (object_definition.extends) {
+                    object_name = object_definition.extends;
+                    generate_object_instance(objectsum);
+                }
+            };
+
+            generate_object_instance();
+
+            output_buffer = 'obj:' + original_object_sum;
+
+            // todo: run constructor logic
         }
 
         // eat space ahead of possible concatenation
@@ -389,55 +560,7 @@ var functions = {
             body_end: 0
         };
 
-        // pass lparen
-        ++char;
-
-        // eat space between lparen and first argument
-        parser.eat_space();
-
-        // loop over each possible argument
-        for (;;) {
-            // zero out current argument
-            var current_argument = '';
-
-            // loop over each character in an argument
-            for (;;) {
-                // fail on newline or endline
-                if (src[char] === '\n' || src[char] === undefined) {
-                    errors.parse('Improper argument declaration');
-                }
-
-                // break on non alpha+_ character
-                if (/[^a-zA-Z_0-9]/gi.test(src[char])) {
-                    break;
-                }
-
-                // add the character to the current argument
-                current_argument += src[char];
-                ++char;
-            }
-
-            // argument iteration complete, push argument into func definition
-            if (current_argument) {
-                func.arguments.push(current_argument);
-            }
-
-            // no comma means no more argument, break out
-            if (src[char] !== ',') {
-                break;
-            }
-
-            ++char;
-            parser.eat_space();
-        }
-
-        // verify next character is an rparen
-        if (src[char] !== ')') {
-            errors.parse('Expecting right parenthesis');
-        }
-
-        // push past rparen
-        ++char;
+        func.arguments = functions.arguments();
 
         parser.eat_space();
 
@@ -504,6 +627,69 @@ var functions = {
             // add to global scope of functions
             axis.symbols.functions[func.name] = func;
         }
+    },
+
+    // reads from ( to ) ex. (n1) or (n1,n2,n3), returns array
+    arguments: function() {
+        var final_arguments = [];
+
+        // pass lparen
+        ++char;
+
+        // eat space between lparen and first argument
+        parser.eat_space();
+
+        // loop over each possible argument
+        for (;;) {
+            // zero out current argument
+            var current_argument = '';
+
+            // loop over each character in an argument
+            for (;;) {
+                parser.eat_space();
+
+                // fail on newline or endline
+                if (src[char] === '\n' || src[char] === undefined) {
+                    errors.parse('Improper argument declaration');
+                }
+
+                if (src[char])
+
+                // break on non alpha+_ character
+                if (/[^a-zA-Z_0-9]/gi.test(src[char])) {
+                    break;
+                }
+
+                // add the character to the current argument
+                current_argument += src[char];
+                ++char;
+            }
+
+            // argument iteration complete, push argument into func definition
+            if (current_argument) {
+                final_arguments.push(current_argument);
+            }
+
+            // no comma means no more argument, break out
+            if (src[char] !== ',') {
+                break;
+            }
+
+            ++char;
+        }
+
+        // eat space between last argument and rparen
+        parser.eat_space();
+
+        // verify next character is an rparen
+        if (src[char] !== ')') {
+            errors.parse('Expecting right parenthesis');
+        }
+
+        // push past rparen
+        ++char;
+
+        return final_arguments;
     }
 
 };
@@ -596,6 +782,8 @@ var constructs = {
 
         // push past rcurly
         ++char;
+
+        context.current_object_lex = null;
     },
 
     // constructor
@@ -879,6 +1067,12 @@ var errors = {
     exit: function(message) {
         console.log('\n----');
         throw 'Manual exit triggered at line ' + line;
+    },
+
+    stack: function(obj) {
+        console.log(inspector.inspect(obj, false, null));
+        console.log('\n----');
+        throw 'Manual exit triggered at line ' + line;
     }
 
 };
@@ -945,6 +1139,26 @@ var parser = {
         }
 
         ++char;
+    },
+
+    extract_word: function() {
+        var word_buffer = '';
+
+        for (;;) {
+            if (src[char] === '\n' || src[char] === undefined) {
+                errors.parse('Error extracting word');
+            }
+
+            // break
+            if (/[^a-zA-Z_0-9]+/gi.test(src[char])) {
+                break;
+            }
+
+            word_buffer += src[char];
+            ++char;
+        }
+
+        return word_buffer;
     }
 
 };
@@ -995,9 +1209,14 @@ var lexer = {
                 continue;
             }
 
+            // method call
+            if (/^[a-zA-Z_0-9]+:[a-zA-Z_0-9]+\s*?\(/gi.test(src.slice(char))) {
+                expressions.evaluate();
+            }
+
             // function call
-            if (/^[a-zA-Z_]+\s*?\(/gi.test(src.slice(char))) {
-                return expressions.evaluate();
+            if (/^[a-zA-Z_0-9]+\s*?\(/gi.test(src.slice(char))) {
+                expressions.evaluate();
             }
 
             // file done
@@ -1114,11 +1333,10 @@ try {
     // do it
     lexer.lex();
 
-    console.log(inspector.inspect(axis, false, null));
+    //console.log(inspector.inspect(axis, false, null));
     console.log('\n\n------', 'execution succeeded, read', line, 'line(s)');
     console.log('------', ((Date.now() - axis.exec_start) / 1000).toFixed(3), 'seconds');
 } catch (err) {
-    console.log(inspector.inspect(axis, false, null));
     console.log(err.toString());
     console.log('Stack Trace:');
 
