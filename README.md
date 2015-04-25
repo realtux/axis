@@ -25,6 +25,12 @@ if name == 'axis' {
 
 ## Change Log
 
+#### v0.2-alpha
+- Object model: objects/methods
+- Scoping: public/protected/private properties/methods
+- Constructors & Destructors
+- Object instantiation
+
 #### v0.1-alpha
 - Stack traces
 - Code bypass after return statement

@@ -203,6 +203,9 @@ var expressions = {
             // add the argument values
             frame_function.argument_values = argument_values;
 
+            // add the object sum that contains the method currently being called
+            frame_function.containing_instance = object_sum;
+
             axis.stack.push(frame_function);
 
             functions.call();
@@ -1004,6 +1007,50 @@ var constructs = {
         char = axis.stack[axis.stack.length - 1].body_end;
     },
 
+    this: function() {
+        char += 4;
+
+        if (src[char] !== ':') {
+            errors.parse('Expected \':\' after \'this\'');
+        }
+
+        // push past colon
+        ++char;
+
+        var variable_name = '';
+
+        for (;;) {
+            // fail on newline or endline
+            if (src[char] === '\n' || src[char] === undefined) {
+                errors.parse('Unterminated expression');
+            }
+
+            // break
+            if (/[^a-zA-Z_0-9]/gi.test(src[char])) {
+                break;
+            }
+
+            // append char to variable name
+            variable_name += src[char];
+            ++char;
+        }
+
+        parser.eat_space();
+
+        if (src[char] === '(') {
+
+        } else if (src[char] !== '=') {
+            errors.parse('Expected =');
+        }
+
+        ++char;
+
+        parser.eat_space();
+        //errors.stack(axis);
+        axis.symbols.object_instances[axis.stack[axis.stack.length - 1].containing_instance].properties[variable_name] =
+            expressions.evaluate();
+    },
+
     // variable assignment
     var: function() {
         char += 3;
@@ -1315,6 +1362,7 @@ var lexer = {
             'fn',     // generic functions
             'if',     // conditionals
             'return', // method returns
+            'this',   // this reference
             'var'     // variable assignment
         ];
     },
@@ -1333,7 +1381,7 @@ try {
     // do it
     lexer.lex();
 
-    //console.log(inspector.inspect(axis, false, null));
+    console.log(inspector.inspect(axis, false, null));
     console.log('\n\n------', 'execution succeeded, read', line, 'line(s)');
     console.log('------', ((Date.now() - axis.exec_start) / 1000).toFixed(3), 'seconds');
 } catch (err) {
