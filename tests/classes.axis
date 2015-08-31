@@ -37,14 +37,14 @@ var calc = +calculator();
 calc:math(1,2);
 
 // sample free form json object/array
-var something = {
-    'asdf' -> 'asd',
-    'somethings' -> [
-        1,
-        2,
-        3,
-        {
-            'num' -> 4,
-        }
-    ]
-};
+//var something = {
+//    'asdf' -> 'asd',
+//    'somethings' -> [
+//        1,
+//        2,
+//        3,
+//        {
+//            'num' -> 4,
+//        }
+//    ]
+//};

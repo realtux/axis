@@ -1,0 +1,10 @@
+fn hello(a,b,c) {
+  echo 'hello';
+}
+
+
+fn a() {
+}
+
+fn db() {
+}
